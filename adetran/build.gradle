@@ -1,0 +1,248 @@
+
+import com.progress.gradle.abl.tasks.*
+
+plugins {
+    id 'progress.openedge.abl-base' version '1.0.0'
+}
+
+abl {
+    dlcHome = new File("${System.env.DLC}")
+    avmOptions {
+        startupParameters = "-zn"
+        tty {
+            enabled = false
+        }
+    }
+
+}
+
+def dbdir = "${buildDir}/adetran/data"
+def xlprojdb = "${dbdir}/xlproj.db"
+def xlkitdb = "${dbdir}/xlkit.db"
+
+task extractADEcomm {
+
+    def extractables = [
+        'adecomm/toolrun.i', 
+        'adecomm/toolmenu.i', 
+        'adecomm/toolsupp.i', 
+        'adecomm/dirsrch.i', 
+        'adecomm/cbvar.i',
+        'adecomm/cbdropx.i',
+        'adecomm/cbcdropx.i',
+        'adecomm/cbtdropx.i',
+        'adecomm/fileinfo.i',
+        'adecomm/cbcomm.i',
+        'adecomm/adeintl.i',
+        'adecomm/adewrap.i',
+        'adecomm/adestds.i',
+        'adecomm/adefext.i'
+    ]
+
+    inputs.files file("${abl.dlcHome}/src/adecomm.pl")
+
+    extractables.each {
+        outputs.files file("${buildDir}/adecomm/toolmenu.i")
+    }
+
+    doFirst {
+        mkdir "${buildDir}/adecomm"
+    }
+
+    doLast {
+
+        extractables.each {
+            def fileName = it
+            // if file already exists...prolib crashes trying to overwrite the file
+            if (!new File("${buildDir}/${fileName}").exists()) {
+                exec {
+                    workingDir "${buildDir}"
+                    commandLine "${abl.dlcHome}/bin/prolib", "${abl.dlcHome}/src/adecomm.pl", '-extract', fileName
+                }
+            }
+        }
+    }    
+    
+}
+
+
+/**
+create kit db
+*/
+task createKitDB(type: CreateDB) {
+    dbName = "xlkit"
+    blockSize = 8
+    outputDir = "${dbdir}" 
+
+    doFirst {
+        mkdir "${dbdir}"
+    }
+
+    doLast {
+        convertCodePage (xlkitdb)
+    }
+}
+
+/**
+define connection to xlkitdb
+ */
+task connectKitDB(type: DBConnection) {
+    dbName = "${dbdir}/xlkit"
+    connectionParameters = "-1 -ld kit"
+    id = 'xlkit'
+    doFirst {
+        mkdir "${dbdir}"
+    }
+}
+
+task loadTranSchemaToKitDb(type: LoadDBSchema)  {
+    dependsOn connectKitDB
+    source 'data/_tran.df'
+
+    dbConnectionReferenceId "xlkit"
+
+    doLast {
+        indexBuild(xlkitdb)
+    }
+
+}
+
+task loadKitSchemaToKitDb(type: LoadDBSchema)  {
+    dependsOn connectKitDB
+    source 'data/xlkit.df'
+    dbConnectionReferenceId "xlkit"
+}
+
+task createKit() {
+    dependsOn createKitDB
+    dependsOn loadTranSchemaToKitDb
+    dependsOn loadKitSchemaToKitDb
+    dependsOn connectKitDB
+}
+
+def convertCodePage(String db) {
+
+    mkdir "${buildDir}/temp"
+
+    exec {
+        workingDir = "${buildDir}/temp"
+        commandLine "${abl.dlcHome}/bin/_proutil", "-z3", db, "-C", "convchar", "convert", "undefined", "-G", "0"
+        standardInput = new ByteArrayInputStream("y\r\n".getBytes())
+    }
+}
+
+def indexBuild(String db) {
+    mkdir "${buildDir}/temp"
+
+    exec {
+        workingDir = "${buildDir}/temp"
+        commandLine "${abl.dlcHome}/bin/_proutil", "-z3", db, "-C", "idxbuild", "all", "-G", "0"
+    }
+}
+
+/**
+create the xlprojdb
+ */
+task createxlprojdb(type: CreateDB) {
+    dbName = "xlproj"
+    blockSize = 8
+    outputDir = "${dbdir}"
+
+    doFirst {
+        mkdir "${dbdir}"
+    }
+    doLast {
+       convertCodePage(xlprojdb)
+    }    
+}
+
+
+/**
+define connection to xlprojdb
+ */
+task connectxlprojdb(type: DBConnection) {
+    connectionParameters = "-1 -ld xlatedb"
+    dbName = "${dbdir}/xlproj"
+    id = 'xlproj'
+}
+
+task loadTranSchemaToxlprojdb(type: LoadDBSchema)  {
+    dependsOn connectxlprojdb
+    source 'data/_tran.df'
+    dbConnectionReferenceId "xlproj"
+
+    doLast {
+        indexBuild(xlprojdb)
+    }
+}
+
+task loadKitSchemaToxlprojdb(type: LoadDBSchema)  {
+    dependsOn connectxlprojdb
+    source 'data/xlproj.df'
+    dbConnectionReferenceId "xlproj"
+}
+
+
+task createXlate () {
+    dependsOn createxlprojdb
+    dependsOn loadTranSchemaToxlprojdb
+    dependsOn loadKitSchemaToxlprojdb
+    dependsOn connectxlprojdb
+}
+
+
+
+task compileCode(type: ABLCompile) {
+    dependsOn createKit 
+    dependsOn createXlate
+    dependsOn extractADEcomm
+    source 'src/main/abl'
+    include '**/*.p',  '**/*.w'
+    rcodeDir = "${buildDir}/rcode"
+    propath  "${projectDir}/src/main/abl", "${buildDir}"
+    dbConnectionReferenceId 'xlkit'
+    dbConnectionReferenceId 'xlproj'
+
+
+}
+
+task copyImages(type : Copy) {
+    from('images')
+    into("${buildDir}/resources/adetran/images")
+    doFirst {
+        mkdir  "${buildDir}/resources/adetran/images"
+    }
+}
+
+task copyLabels(type : Copy) {
+
+    from('labels')
+    into("${buildDir}/resources/adetran/labels")
+
+    doFirst {
+        mkdir "${buildDir}/resources/adetran/labels"
+    }    
+}
+
+task createPL(type: PL) {
+
+    dependsOn compileCode
+    plFile = "${buildDir}/lib/tranman.pl"
+    from "${buildDir}/rcode"
+    include "**/*.r"
+
+    doFirst {
+        mkdir "${buildDir}/lib"
+    }
+
+}
+
+task build {
+    dependsOn copyImages
+    dependsOn copyLabels
+    dependsOn createPL
+}
+
+task clean {
+    delete file ("${buildDir}")
+}

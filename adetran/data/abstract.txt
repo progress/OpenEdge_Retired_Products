@@ -1,0 +1,12 @@
+ 
+The original files .csv files in this folder are copyright Microsoft Corporation and
+cannot be distributed under the original license.
+
+The files have been left in place in order to avoid breaking functionality, but 
+are left as empty files to respect the Microsoft Copyright.
+
+You can obtain an updated copy of the Microsoft glossaries in the .tbx file format
+from the following website:
+
+https://www.microsoft.com/en-us/language/Terminology?rtc=1
+
