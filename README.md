@@ -10,11 +10,11 @@ This software is provided without warrenty. The software is NOT supported by Pro
 
 ## Caveat
 
-Some very basic sanity testing has been done against OpenEdge 12 to ensure this builds and major functionality works. There are some known issues. Please refere to each respective sub-project to view those issues.
+Some very basic sanity testing has been done against OpenEdge 12 to ensure this builds and major functionality works. There are some known issues. Please refer to each respective sub-project to view those issues.
 
 ## Software
-- OpenEdge Translation Manager and Visual Translator [adretran]
-- Progress Dynamics [dynamics]
+- adetran:  OpenEdge Translation Manager and Visual Translator
+- dynamics: Progress Dynamics
   
 ## Help
 For help and instructions visit https://docs.progress.com. None of the contained software are not distributed with OpenEdge 12. You may need to refer to the OpenEdge 11 help content.
