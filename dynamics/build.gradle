@@ -150,6 +150,13 @@ task compileCode(type: CompileAblTask) {
     include('**/*.p')
     include('**/*.w')
     exclude('ry/tem/**')
+    exclude('ry/obj/rylookupbv.w')
+    exclude('ry/obj/ryoscompilev.w')
+    exclude('ry/obj/rysdfcombv.w')
+    exclude('ry/obj/rysdflkupv.w')
+    exclude('af/obj2/gscemviewv.w')
+    exclude('af/obj2/gsmmmimg1v.w')
+    exclude('posselic.w')
     
     doLast{
         logWarnings(file("$buildDir/rcode/.pct/"), "compileCode")
@@ -158,11 +165,15 @@ task compileCode(type: CompileAblTask) {
 task packageCode(type: Copy){
     dependsOn compileCode
     doFirst{
-        distDir.rmdirs()
         distDir.mkdirs()
     }
     from abl.rcodeDir
     into distDir
     exclude ".pct"
+}
+// write compiler warning to the build log
+def logWarnings(File pctDir, String logGrp) {
+    pctDir.traverse(type: FileType.FILES, nameFilter: ~/.*\.warnings/ )
+        { logger.warn("[:$logGrp] " + it.text.trim()) }
 }
 defaultTasks 'packageCode'
